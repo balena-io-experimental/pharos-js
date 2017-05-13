@@ -3,16 +3,8 @@
 const
   _       = require('lodash'),
   Promise = require('bluebird'),
-  rp   = require('request-promise'),
-  led = require('sense-hat-led')
-
-for (let x; x < 8; x++) {
-  for (let y; y < 8; y++) {
-    console.log(`setting ${x},${y}`)
-    led.setPixel(x, y, [255, 127, 0])
-  }
-}
-
+  rp      = require('request-promise'),
+  led     = require('sense-hat-led')
 
 const
   frontApiKey = process.env.FRONT_API_KEY,
@@ -44,6 +36,13 @@ const recursiveRequest = (uri, method, page, data) => {
 }
 
 const run = () => {
+  for (let x= 0; x < 8; x++) {
+    for (let y = 0; y < 8; y++) {
+      console.log(`setting ${x},${y}`)
+      led.setPixel(x, y, [255, 127, 0])
+    }
+  }
+
   console.error('making requests...')
   // for each inbox id
   Promise.map(inboxIds, (inboxId) => {
@@ -69,7 +68,7 @@ const run = () => {
 
     return convo.last_message.created_at > convo.lastComment.posted_at
   })
-  .then(console.log)
+  //.then(console.log)
   .finally(setTimeout(run, 10000))
 }
 

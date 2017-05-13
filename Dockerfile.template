@@ -1,12 +1,12 @@
 FROM resin/%%RESIN_MACHINE_NAME%%-node:7
 
+ENTRYPOINT ["/usr/local/bin/npm"]
+CMD ["start"]
+
 WORKDIR /usr/src/app
 
 COPY package.json package.json
 RUN npm install
-
-ENTRYPOINT ["/usr/local/bin/npm"]
-CMD ["start"]
 
 COPY index.js index.js
 
