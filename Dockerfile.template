@@ -1,0 +1,9 @@
+FROM resin/%%RESIN_MACHINE_NAME%%-node:7
+
+WORKDIR /usr/src/app
+
+COPY package.json package.json
+RUN npm install
+
+ENTRYPOINT ["/usr/local/bin/npm"]
+CMD ["start"]
