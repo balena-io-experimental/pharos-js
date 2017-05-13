@@ -7,3 +7,6 @@ RUN npm install
 
 ENTRYPOINT ["/usr/local/bin/npm"]
 CMD ["start"]
+
+COPY index.js index.js
+
