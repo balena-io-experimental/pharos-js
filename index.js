@@ -36,12 +36,6 @@ const recursiveRequest = (uri, method, page, data) => {
 }
 
 const run = () => {
-  for (let x= 0; x < 8; x++) {
-    for (let y = 0; y < 8; y++) {
-      console.log(`setting ${x},${y}`)
-      led.setPixel(x, y, [255, 127, 0])
-    }
-  }
 
   console.error('making requests...')
   // for each inbox id
@@ -68,9 +62,40 @@ const run = () => {
 
     return convo.last_message.created_at > convo.lastComment.posted_at
   })
-  //.then(console.log)
+  .then(convos => {
+    console.log(convo)
+    const buffer = emptyBuffer()
+
+    for (const convo of convos) {
+      for (let y = 0; y < 7; y++) {
+        buffer[x][y] = [255, 0, 0]
+      }
+    }
+
+    led.writeBuffer(buffer)
+  })
   .finally(setTimeout(run, 10000))
 }
 
+const writeBuffer = (buffer) => {
+  led.setPixels(buffer)
+}
+
+const emptyBuffer = () => {
+  const buffer = []
+
+  for (let x= 0; x < 8; x++) {
+    buffer[x] = []
+
+    buffer[x][0] = [0, 255, 0]
+    for (let y = 1; y < 8; y++) {
+      buffer[x][y] = [0, 0, 0]
+    }
+  }
+
+  return buffer
+}
+
+led.clear()
 run()
 
