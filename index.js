@@ -4,7 +4,7 @@ const
   _       = require('lodash'),
   Promise = require('bluebird'),
   rp      = require('request-promise'),
-  led     = require('sense-hat-led')
+  nsh     = require('node-sense-hat')
 
 const
   frontApiKey = process.env.FRONT_API_KEY,
@@ -63,7 +63,7 @@ const run = () => {
     return convo.last_message.created_at > convo.lastComment.posted_at
   })
   .then(convos => {
-    console.log(convo)
+    console.log(convos)
     const buffer = emptyBuffer()
 
     for (const convo of convos) {
@@ -72,13 +72,13 @@ const run = () => {
       }
     }
 
-    led.writeBuffer(buffer)
+    nsh.Leds.writeBuffer(buffer)
   })
   .finally(setTimeout(run, 10000))
 }
 
 const writeBuffer = (buffer) => {
-  led.setPixels(buffer)
+  nsh.Leds.setPixels(buffer)
 }
 
 const emptyBuffer = () => {
@@ -96,6 +96,6 @@ const emptyBuffer = () => {
   return buffer
 }
 
-led.clear()
+nsh.Leds.clear()
 run()
 
