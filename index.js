@@ -4,19 +4,23 @@ const
   _       = require('lodash'),
   Promise = require('bluebird'),
   rp      = require('request-promise'),
-  sense     = require('node-sense-hat')
+  sense   = require('node-sense-hat'),
+  Buffer  = require('./buffer')
 
 const
-  frontApiKey = process.env.FRONT_API_KEY,
-  inboxIds    = _.split(process.env.INBOX_IDS, ','),
-  interval    = process.env.INTERVAL || 20000,
-  page        = 1
+  frontApiKey     = process.env.FRONT_API_KEY,
+  inboxIds        = _.split(process.env.INBOX_IDS, ','),
+  interval        = process.env.INTERVAL || 20000,
+  page            = 1,
+  frontPixelColor = [0, 0, 255] // blue
 
 const fetchFrontMessages = (inbox) => {
   return recursiveRequest(`https://api2.frontapp.com/inboxes/${inbox}/conversations?q[statuses][]=unassigned&q[statuses][]=assigned&page=${page}`, 'GET', 1, [])
 }
 
 const recursiveRequest = (uri, method, page, data) => {
+  if (! data) data = []
+
   return rp({
     uri: uri,
     method: method,
@@ -30,20 +34,15 @@ const recursiveRequest = (uri, method, page, data) => {
 
     if (obj._pagination.next != null) {
       return recursiveRequest(url, page + 1, data)
-    } else {
-      return _.flatten(data)
     }
+
+    return _.flatten(data)
   })
 }
 
 const run = () => {
-  console.error('making requests...')
-
   // for each inbox id
-  Promise.map(inboxIds, (inboxId) => {
-    // get all messages for the inbox
-    return fetchFrontMessages(inboxId, 1, [])
-  })
+  Promise.map(inboxIds, (inboxId) => fetchFrontMessages(inboxId, 1, []))
   .then(res => {
     // filter out outbound (from resin) messages
     return _.filter(_.flatten(res), (convo) => {
@@ -61,6 +60,7 @@ const run = () => {
     // filter out convos where resin had the last comment
     if (! convo.lastComment) return true
 
+    // Filter out convos where we've commented since the message came in
     return convo.last_message.created_at > convo.lastComment.posted_at
   })
   .then(writeToBuffer)
@@ -74,15 +74,22 @@ const writeToBuffer = (convos) => {
 
   let x = 0
   for (const convo of convos) {
+    // We only have 8 columns of pixels available
     if (x > 7) break
 
+    // Get the color percentile to use
     const percentile = getPercentile(getElapsed(now, convo))
+
+    // Log the conversation ID so you can find the convo if it's not obvious
     console.log([convo.id, percentile])
 
+    // Set all the pixels in the column to the right color
     for (let y = 0; y < 8; y++) {
       buffer.setPixel(x, y, getColor(percentile))
     }
-    buffer.setPixel(x, 0, [0, 0, 255])
+
+    // Set the color of the base pixel to indicate this is a Front message
+    buffer.setPixel(x, 0, frontPixelColor)
 
     x++
   }
@@ -114,33 +121,6 @@ const getColor = (percentile) => {
 
   return [red, green, 0]
 }
-
-class Buffer {
-  constructor() {
-    const buffer = []
-
-    for (let x= 0; x < 8; x++) {
-      buffer[x] = []
-
-      for (let y = 0; y < 8; y++) {
-        buffer[x][y] = [0, 0, 0]
-      }
-    }
-
-    this.pixels = buffer
-  }
-
-  setPixel(x, y, value) {
-    this.pixels[y][x] = value
-  }
-
-  write() {
-    sense.Leds.setPixels(_.reverse(_.flatten(_.map(this.pixels, (row) => {
-      return _.reverse(row)
-    }))))
-  }
-}
-
 
 sense.Leds.lowLight = true
 sense.Leds.clear()
