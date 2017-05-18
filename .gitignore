@@ -4,3 +4,5 @@ node_modules
 *.py
 Dockerfile
 .resin-sync.yml
+.env
+*.log
