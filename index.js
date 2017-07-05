@@ -3,46 +3,53 @@
 const
   _       = require('lodash'),
   Promise = require('bluebird'),
-  rp      = require('request-promise'),
+  Front = require('front-sdk').Front,
   sense   = require('node-sense-hat'),
   Buffer  = require('./buffer')
 
 const
   frontApiKey     = process.env.FRONT_API_KEY,
+  frontSecretKey  = process.env.FRONT_SECRET_KEY,
+  eventDriven     = process.env.EVENT_DRIVEN,
   inboxIds        = _.split(process.env.INBOX_IDS, ','),
+  frontInstance   = new Front(frontApiKey, frontSecretKey),
   interval        = process.env.INTERVAL || 20000,
   page            = 1,
   frontPixelColor = [0, 0, 255] // blue
 
-const fetchFrontMessages = (inbox) => {
-  return recursiveRequest(`https://api2.frontapp.com/inboxes/${inbox}/conversations?q[statuses][]=unassigned&q[statuses][]=assigned&page=${page}`, 'GET', 1, [])
-}
-
-const recursiveRequest = (uri, method, page, data) => {
-  if (! data) data = []
-
-  return rp({
-    uri: uri,
-    method: method,
-    headers: {
-      'Authorization': `Bearer ${frontApiKey}`
+const fetchFrontItems = (options) => {
+  let page = 1
+  const data = []
+  const getItemPage = () => {
+    let itemPromise
+    if (options.inbox) {
+      itemPromise = frontInstance.inbox.listConversations({
+        inbox_id: options.inbox,
+        page: page,
+        q: 'q[statuses][]=unassigned&q[statuses][]=assigned',
+      })
+    } else {
+      itemPromise = frontInstance.conversation.listComments({
+        conversation_id: options.conversation
+      })
     }
-  })
-  .then(body => {
-    const obj = JSON.parse(body)
-    data.push(obj._results)
+    return itemPromise.then(body => {
+      data.push(body._results)
+      if (body._pagination.next) {
+        page += 1
+        return getItemPage()
+      }
 
-    if (obj._pagination.next != null) {
-      return recursiveRequest(url, page + 1, data)
-    }
+      return _.flatten(data)
+    })
+  }
 
-    return _.flatten(data)
-  })
+  return getItemPage()
 }
 
 const run = () => {
   // for each inbox id
-  Promise.map(inboxIds, (inboxId) => fetchFrontMessages(inboxId, 1, []))
+  Promise.map(inboxIds, (inboxId) => fetchFrontItems({ inbox: inboxId }))
   .then(res => {
     // filter out outbound (from resin) messages
     return _.filter(_.flatten(res), (convo) => {
@@ -50,7 +57,7 @@ const run = () => {
     })
   }).map(convo => {
     // add the latest comment to the convo
-    return recursiveRequest(convo._links.related.comments, 'GET', 1, [])
+    return fetchFrontItems({ conversation: convo.id })
     .then(comments => {
       convo.lastComment = comments[0]
       return convo
@@ -64,7 +71,11 @@ const run = () => {
     return convo.last_message.created_at > convo.lastComment.posted_at
   })
   .then(writeToBuffer)
-  .finally(setTimeout(run, interval))
+  .finally(() => {
+    if (!eventDriven) {
+      setTimeout(run, interval)
+    }
+  })
 }
 
 const writeToBuffer = (convos) => {
@@ -125,5 +136,11 @@ const getColor = (percentile) => {
 sense.Leds.lowLight = true
 sense.Leds.clear()
 sense.Leds.flipH()
-run()
 
+run();
+
+// If we're event driven, we only ever do something if an event drops on us
+if (eventDriven) {
+  // Initiate
+  frontInstance.registerEvents({ port: 80 }, run);
+}
